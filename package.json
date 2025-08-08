@@ -1,6 +1,6 @@
 {
   "name": "xd-post",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "XD-POST",
   "author": "",
   "license": "MIT",
@@ -34,4 +34,4 @@
     "tsup": "^7.2.0",
     "typescript": "^5.5.0"
   }
-} 
+}
