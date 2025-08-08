@@ -222,13 +222,30 @@ export function injectFixedSnippetWithDynamicInit(
 
   const fixedBootstrap = `!function(t,e){var o,n,p,r;e.__SV||(window.posthog=e,e._i=[],e.init=function(i,s,a){function g(t,e){var o=e.split(".");2==o.length&&(t=t[o[0]],e=o[1]),t[e]=function(){t.push([e].concat(Array.prototype.slice.call(arguments,0)))}}(p=t.createElement("script")).type="text/javascript",p.async=!0,p.src=s.api_host.replace(".i.posthog.com","-assets.i.posthog.com")+"/static/array.js",(r=t.getElementsByTagName("script")[0]).parentNode.insertBefore(p,r);var u=e;for(void 0!==a?u=e[a]=[]:a="posthog",u.people=u.people||[],u.toString=function(t){var e="posthog";return"posthog"!==a&&(e+="."+a),t||(e+=" (stub)"),e},u.people.toString=function(){return u.toString(1)+".people (stub)"},o="capture identify alias people.set people.set_once set_config register register_once unregister opt_out_capturing has_opted_out_capturing opt_in_capturing reset isFeatureEnabled onFeatureFlags getFeatureFlag getFeatureFlagPayload reloadFeatureFlags group updateEarlyAccessFeatureEnrollment getEarlyAccessFeatures getActiveMatchingSurveys getSurveys getNextSurveyStep onSessionId setPersonProperties".split(" "),n=0;n<o.length;n++)g(u,o[n]);e._i.push([i,s,a])},e.__SV=1)}(document,window.posthog||[]);`;
 
-  const content = `${fixedBootstrap}\n${initCall}`;
+  // const content = `${fixedBootstrap}\n${initCall}`;
+  const content = `${fixedBootstrap}`;
   return ensureHeadInlineScript({ id: params.id, content });
 }
 
 export function getSDK<T = unknown>(): T | undefined {
   return storedExternalSDK as T | undefined;
 }
+
+// 新增：导出一个与 posthog.identify 参数一致的便捷方法
+export function identify(...args: Parameters<typeof posthog.identify>): void {
+  if (!isBrowser) return;
+  try {
+    (
+      posthog.identify as unknown as (
+        ...a: Parameters<typeof posthog.identify>
+      ) => void
+    )(...args);
+  } catch (_) {
+    // 忽略
+  }
+}
+
+export * from "./popup";
 
 // 组合默认导出：行为与 posthog 相同，但增加了我们的自定义方法
 export type XDPosthog = typeof posthog & {
