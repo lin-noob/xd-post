@@ -1,4 +1,5 @@
 import posthog from "posthog-js";
+import { startPageViewTracking, stopPageViewTracking, trackCurrentPageDuration, getPageViewTracker, getCurrentPageDuration, getPageViewTrackingStatus, enableAutoPageTracking, disableAutoPageTracking } from "./page-tracker";
 
 // 简单的运行时守卫以避免 SSR 崩溃
 const isBrowser =
@@ -245,7 +246,12 @@ export function identify(...args: Parameters<typeof posthog.identify>): void {
   }
 }
 
+// 用独立模块替换内联的页面停留时间实现
+export * from "./page-tracker";
+
+
 export * from "./popup";
+
 
 // 组合默认导出：行为与 posthog 相同，但增加了我们的自定义方法
 export type XDPosthog = typeof posthog & {
@@ -254,6 +260,16 @@ export type XDPosthog = typeof posthog & {
   ensureHeadInlineScript: typeof ensureHeadInlineScript;
   buildPosthogInitCall: typeof buildPosthogInitCall;
   getSDK: typeof getSDK;
+  // 页面停留时间跟踪方法
+  startPageViewTracking: typeof startPageViewTracking;
+  stopPageViewTracking: typeof stopPageViewTracking;
+  trackCurrentPageDuration: typeof trackCurrentPageDuration;
+  getPageViewTracker: typeof getPageViewTracker;
+  getCurrentPageDuration: typeof getCurrentPageDuration;
+  getPageViewTrackingStatus: typeof getPageViewTrackingStatus;
+  // 自动页面跟踪方法
+  enableAutoPageTracking: typeof enableAutoPageTracking;
+  disableAutoPageTracking: typeof disableAutoPageTracking;
 };
 
 const xdposthog: XDPosthog = new Proxy(posthog as XDPosthog, {
@@ -263,6 +279,16 @@ const xdposthog: XDPosthog = new Proxy(posthog as XDPosthog, {
     if (prop === "ensureHeadInlineScript") return ensureHeadInlineScript;
     if (prop === "buildPosthogInitCall") return buildPosthogInitCall;
     if (prop === "getSDK") return getSDK;
+    // 页面停留时间跟踪方法
+    if (prop === "startPageViewTracking") return startPageViewTracking;
+    if (prop === "stopPageViewTracking") return stopPageViewTracking;
+    if (prop === "trackCurrentPageDuration") return trackCurrentPageDuration;
+    if (prop === "getPageViewTracker") return getPageViewTracker;
+    if (prop === "getCurrentPageDuration") return getCurrentPageDuration;
+    if (prop === "getPageViewTrackingStatus") return getPageViewTrackingStatus;
+    // 自动页面跟踪方法
+    if (prop === "enableAutoPageTracking") return enableAutoPageTracking;
+    if (prop === "disableAutoPageTracking") return disableAutoPageTracking;
     return Reflect.get(target, prop, receiver);
   },
   set(target, prop, value, receiver) {
