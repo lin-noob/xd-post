@@ -1,4 +1,4 @@
-import posthog from "posthog-js";
+// PostHog reporting removed
 
 const isBrowser = typeof window !== "undefined" && typeof document !== "undefined";
 
@@ -184,24 +184,10 @@ class PageViewTracker {
       ...this.options.customProperties,
     };
 
-    try {
-      posthog.capture(eventType, {
-        ...event,
-        page_url: window.location.href,
-        page_title: document.title,
-      });
-    } catch (_) {
-      // ignore
-    }
+    // Intentionally no-op: external reporting handled elsewhere
   }
 
-  private getSessionId(): string {
-    try {
-      const sessionId = (posthog as any).get_session_id?.();
-      if (sessionId) return sessionId;
-    } catch (_) {}
-    return `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-  }
+  // private getSessionId(): string { return `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`; }
 
   destroy(): void {
     this.stop();

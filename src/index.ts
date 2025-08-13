@@ -1,5 +1,6 @@
 import posthog from "posthog-js";
 import { startPageViewTracking, stopPageViewTracking, trackCurrentPageDuration, getPageViewTracker, getCurrentPageDuration, getPageViewTrackingStatus, enableAutoPageTracking, disableAutoPageTracking } from "./page-tracker";
+import { enableAutoTracker, disableAutoTracker, setUserId, setBusinessId, trackEvent } from "./auto-tracker";
 
 // 简单的运行时守卫以避免 SSR 崩溃
 const isBrowser =
@@ -249,7 +250,8 @@ export function identify(...args: Parameters<typeof posthog.identify>): void {
 // 用独立模块替换内联的页面停留时间实现
 export * from "./page-tracker";
 
-
+export * from "./auto-tracker";
+ 
 export * from "./popup";
 
 
@@ -260,7 +262,7 @@ export type XDPosthog = typeof posthog & {
   ensureHeadInlineScript: typeof ensureHeadInlineScript;
   buildPosthogInitCall: typeof buildPosthogInitCall;
   getSDK: typeof getSDK;
-  // 页面停留时间跟踪方法
+  // 页面停留时间跟踪方法（注意：page-tracker 已不做 PostHog 上报，仅做本地计时）
   startPageViewTracking: typeof startPageViewTracking;
   stopPageViewTracking: typeof stopPageViewTracking;
   trackCurrentPageDuration: typeof trackCurrentPageDuration;
@@ -270,6 +272,12 @@ export type XDPosthog = typeof posthog & {
   // 自动页面跟踪方法
   enableAutoPageTracking: typeof enableAutoPageTracking;
   disableAutoPageTracking: typeof disableAutoPageTracking;
+  // 新增：全量自动埋点
+  enableAutoTracker: typeof enableAutoTracker;
+  disableAutoTracker: typeof disableAutoTracker;
+  setUserId: typeof setUserId;
+  setBusinessId: typeof setBusinessId;
+  trackEvent: typeof trackEvent;
 };
 
 const xdposthog: XDPosthog = new Proxy(posthog as XDPosthog, {
@@ -289,6 +297,11 @@ const xdposthog: XDPosthog = new Proxy(posthog as XDPosthog, {
     // 自动页面跟踪方法
     if (prop === "enableAutoPageTracking") return enableAutoPageTracking;
     if (prop === "disableAutoPageTracking") return disableAutoPageTracking;
+    if (prop === "enableAutoTracker") return enableAutoTracker;
+    if (prop === "disableAutoTracker") return disableAutoTracker;
+    if (prop === "setUserId") return setUserId;
+    if (prop === "setBusinessId") return setBusinessId;
+    if (prop === "trackEvent") return trackEvent;
     return Reflect.get(target, prop, receiver);
   },
   set(target, prop, value, receiver) {
