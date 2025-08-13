@@ -91,6 +91,10 @@ let isFirstVisit = false;
 
 // For cleanup
 let removeListeners: Array<() => void> = [];
+// 防止重复绑定的标记
+let boundEvents: Set<string> = new Set();
+// 初始化计数，用于追踪初始化次数
+let initCount = 0;
 
 function getDefaultedOptions(options: AutoTrackerOptions): Required<AutoTrackerOptions> {
   return {
@@ -545,55 +549,90 @@ function listenToRouteChanges(): void {
   // pushState / replaceState
   const origPush = history.pushState;
   const origReplace = history.replaceState;
-  history.pushState = function(...args: any[]) {
-    onPageLeave(false);
-    origPush.apply(history, args as any);
-    startPageTimers();
-    onPageView();
-  } as any;
-  history.replaceState = function(...args: any[]) {
-    onPageLeave(false);
-    origReplace.apply(history, args as any);
-    startPageTimers();
-    onPageView();
-  } as any;
-  removeListeners.push(() => { history.pushState = origPush; });
-  removeListeners.push(() => { history.replaceState = origReplace; });
+  
+  // 只有在尚未修改 history 方法时才替换它们
+  if (history.pushState === origPush) {
+    history.pushState = function(...args: any[]) {
+      onPageLeave(false);
+      origPush.apply(history, args as any);
+      startPageTimers();
+      onPageView();
+    } as any;
+    removeListeners.push(() => { history.pushState = origPush; });
+  }
+  
+  // 只有在尚未修改 history 方法时才替换它们
+  if (history.replaceState === origReplace) {
+    history.replaceState = function(...args: any[]) {
+      onPageLeave(false);
+      origReplace.apply(history, args as any);
+      startPageTimers();
+      onPageView();
+    } as any;
+    removeListeners.push(() => { history.replaceState = origReplace; });
+  }
 }
 
 function addCoreListeners(): void {
   // Clicks
-  const clickHandler = (e: MouseEvent) => onClick(e);
-  document.addEventListener("click", clickHandler, { capture: true, passive: true } as any);
-  removeListeners.push(() => document.removeEventListener("click", clickHandler, { capture: true } as any));
+  if (!boundEvents.has('click')) {
+    const clickHandler = (e: MouseEvent) => onClick(e);
+    document.addEventListener("click", clickHandler, { capture: true, passive: true } as any);
+    removeListeners.push(() => document.removeEventListener("click", clickHandler, { capture: true } as any));
+    boundEvents.add('click');
+  }
 
   // Scroll depth
-  const scrollHandler = () => onScroll();
-  window.addEventListener("scroll", scrollHandler, { passive: true } as any);
-  window.addEventListener("resize", scrollHandler);
-  removeListeners.push(() => window.removeEventListener("scroll", scrollHandler));
-  removeListeners.push(() => window.removeEventListener("resize", scrollHandler));
+  if (!boundEvents.has('scroll')) {
+    const scrollHandler = () => onScroll();
+    window.addEventListener("scroll", scrollHandler, { passive: true } as any);
+    window.addEventListener("resize", scrollHandler);
+    removeListeners.push(() => window.removeEventListener("scroll", scrollHandler));
+    removeListeners.push(() => window.removeEventListener("resize", scrollHandler));
+    boundEvents.add('scroll');
+  }
 
   // Page leave
-  const leaveHandler = () => onPageLeave(true);
-  window.addEventListener("beforeunload", leaveHandler);
-  window.addEventListener("pagehide", leaveHandler);
-  removeListeners.push(() => window.removeEventListener("beforeunload", leaveHandler));
-  removeListeners.push(() => window.removeEventListener("pagehide", leaveHandler));
+  if (!boundEvents.has('unload')) {
+    const leaveHandler = () => onPageLeave(true);
+    window.addEventListener("beforeunload", leaveHandler);
+    window.addEventListener("pagehide", leaveHandler);
+    removeListeners.push(() => window.removeEventListener("beforeunload", leaveHandler));
+    removeListeners.push(() => window.removeEventListener("pagehide", leaveHandler));
+    boundEvents.add('unload');
+  }
 
   // Visibility -> treat hidden as potential leave to record dwell time more accurately
-  const visHandler = () => {
-    if (document.hidden) onPageLeave(false);
-  };
-  document.addEventListener("visibilitychange", visHandler);
-  removeListeners.push(() => document.removeEventListener("visibilitychange", visHandler));
+  if (!boundEvents.has('visibility')) {
+    const visHandler = () => {
+      if (document.hidden) onPageLeave(false);
+    };
+    document.addEventListener("visibilitychange", visHandler);
+    removeListeners.push(() => document.removeEventListener("visibilitychange", visHandler));
+    boundEvents.add('visibility');
+  }
 
   // Route changes
-  listenToRouteChanges();
+  if (!boundEvents.has('route')) {
+    listenToRouteChanges();
+    boundEvents.add('route');
+  }
 }
 
 export async function enableAutoTracker(options: AutoTrackerOptions): Promise<void> {
   if (!isBrowser) return;
+  
+  // 如果已经启用，先清理之前的状态（但保留已绑定的事件）
+  if (trackerEnabled) {
+    console.log('[XD-Tracker] 重新初始化，保留已绑定事件');
+    // 保留事件绑定，但清理其他状态
+    trackerEnabled = false;
+    // 执行清理但不重置 boundEvents
+  }
+  
+  // 增加初始化计数
+  initCount++;
+  
   trackerOptions = getDefaultedOptions(options);
   persistedUserId = ensureUserId(trackerOptions.storageKeyUserId, trackerOptions.userId);
   isFirstVisit = checkFirstVisit(trackerOptions.storageKeyFirstVisit);
@@ -602,13 +641,52 @@ export async function enableAutoTracker(options: AutoTrackerOptions): Promise<vo
   startPageTimers();
   onPageView();
   addCoreListeners();
+  
+  console.log(`[XD-Tracker] 已启用 (初始化次数: ${initCount}, 已绑定事件: ${Array.from(boundEvents).join(', ')})`);
 }
 
-export function disableAutoTracker(): void {
+export function disableAutoTracker(fullReset?: boolean): void {
   trackerEnabled = false;
+  
+  // 执行所有清理函数，但保留绑定事件的记录
   for (const fn of removeListeners.splice(0, removeListeners.length)) {
     try { fn(); } catch (_) {}
   }
+  
+  // 清空绑定事件记录（完全重置）
+  if (fullReset === true) {
+    boundEvents.clear();
+    initCount = 0;
+    console.log('[XD-Tracker] 已完全禁用并重置事件绑定');
+  } else {
+    console.log('[XD-Tracker] 已禁用，但保留事件绑定记录');
+  }
+}
+
+/**
+ * 获取跟踪器当前状态
+ */
+export function getTrackerStatus(): {
+  enabled: boolean;
+  boundEvents: string[];
+  initCount: number;
+  userId: string | null;
+  isFirstVisit: boolean;
+} {
+  return {
+    enabled: trackerEnabled,
+    boundEvents: Array.from(boundEvents),
+    initCount,
+    userId: persistedUserId,
+    isFirstVisit
+  };
+}
+
+/**
+ * 重置跟踪器状态，包括所有事件绑定
+ */
+export function resetTracker(): void {
+  disableAutoTracker(true);
 }
 
 export function setUserId(userId: string): void {

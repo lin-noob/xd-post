@@ -1,6 +1,6 @@
 import posthog from "posthog-js";
 import { startPageViewTracking, stopPageViewTracking, trackCurrentPageDuration, getPageViewTracker, getCurrentPageDuration, getPageViewTrackingStatus, enableAutoPageTracking, disableAutoPageTracking } from "./page-tracker";
-import { enableAutoTracker, disableAutoTracker, setUserId, setBusinessId, trackEvent } from "./auto-tracker";
+import { enableAutoTracker, disableAutoTracker, setUserId, setBusinessId, trackEvent, getTrackerStatus, resetTracker } from "./auto-tracker";
 
 // 简单的运行时守卫以避免 SSR 崩溃
 const isBrowser =
@@ -278,6 +278,9 @@ export type XDPosthog = typeof posthog & {
   setUserId: typeof setUserId;
   setBusinessId: typeof setBusinessId;
   trackEvent: typeof trackEvent;
+  // 新增：跟踪器状态管理
+  getTrackerStatus: typeof getTrackerStatus;
+  resetTracker: typeof resetTracker;
 };
 
 const xdposthog: XDPosthog = new Proxy(posthog as XDPosthog, {
@@ -302,6 +305,8 @@ const xdposthog: XDPosthog = new Proxy(posthog as XDPosthog, {
     if (prop === "setUserId") return setUserId;
     if (prop === "setBusinessId") return setBusinessId;
     if (prop === "trackEvent") return trackEvent;
+    if (prop === "getTrackerStatus") return getTrackerStatus;
+    if (prop === "resetTracker") return resetTracker;
     return Reflect.get(target, prop, receiver);
   },
   set(target, prop, value, receiver) {
