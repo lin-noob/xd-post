@@ -1,18 +1,18 @@
 /*
-  Auto Tracker: capture pageView, pageLeave, scrollDepth, dwellTime, click, formSubmit
-  - Uploads to configurable endpoint with base fields and event-specific fields
-  - Persists userId (uuid) in localStorage; supports businessId and auth headers
+  Auto Tracker: capture PageView, PageLeave, ScrollDepth, Click events
+  - PageView: 首次进入系统时采集来源(source)
+  - PageLeave: 离开页面时汇总上报最大滚动深度和停留时间
+  - ScrollDepth: 记录滚动深度
+  - Click: 记录点击事件
 */
 
 const isBrowser = typeof window !== "undefined" && typeof document !== "undefined";
 
 export type XDEventType =
-  | "pageView"
-  | "pageLeave"
-  | "scrollDepth"
-  | "dwellTime"
-  | "click"
-  | "formSubmit";
+  | "PageView"
+  | "PageLeave"
+  | "ScrollDepth"
+  | "Click";
 
 export interface XDBaseEvent {
   eventType: XDEventType;
@@ -37,25 +37,23 @@ export interface XDBaseEvent {
 }
 
 export interface XDPageViewEvent extends XDBaseEvent {
-  eventType: "pageView";
+  eventType: "PageView";
+  isFirstVisit?: boolean; // 是否首次访问
 }
 
 export interface XDPageLeaveEvent extends XDBaseEvent {
-  eventType: "pageLeave";
-}
-
-export interface XDDwellTimeEvent extends XDBaseEvent {
-  eventType: "dwellTime";
-  durationMs: number;
+  eventType: "PageLeave";
+  maxScrollDepth: number; // 0-100
+  dwellTimeMs: number; // 停留时间(毫秒)
 }
 
 export interface XDScrollDepthEvent extends XDBaseEvent {
-  eventType: "scrollDepth";
+  eventType: "ScrollDepth";
   maxDepthPercent: number; // 0-100
 }
 
 export interface XDClickEvent extends XDBaseEvent {
-  eventType: "click";
+  eventType: "Click";
   elementTag?: string;
   elementId?: string;
   elementClasses?: string;
@@ -63,20 +61,11 @@ export interface XDClickEvent extends XDBaseEvent {
   href?: string;
 }
 
-export interface XDFormSubmitEvent extends XDBaseEvent {
-  eventType: "formSubmit";
-  action?: string;
-  method?: string;
-  fieldNames?: string[]; // 不上传值，避免敏感数据
-}
-
 export type XDEvent =
   | XDPageViewEvent
   | XDPageLeaveEvent
-  | XDDwellTimeEvent
   | XDScrollDepthEvent
-  | XDClickEvent
-  | XDFormSubmitEvent;
+  | XDClickEvent;
 
 export interface AutoTrackerOptions {
   endpoint: string; // API 接口地址
@@ -85,12 +74,10 @@ export interface AutoTrackerOptions {
   getAuthHeaders?: () => Record<string, string> | Promise<Record<string, string>>;
   userId?: string; // 如果不传，则生成 uuid 并持久化
   storageKeyUserId?: string; // 默认 "xd_user_id"
+  storageKeyFirstVisit?: string; // 默认 "xd_first_visit"
   trackClicks?: boolean; // 默认 true
-  trackForms?: boolean; // 默认 true
   trackScrollDepth?: boolean; // 默认 true
-  trackPageViews?: boolean; // 默认 true
-  trackDwellTime?: boolean; // 默认 true
-  scrollReportOnLeaveOnly?: boolean; // 默认 true，仅在离开时上报最大滚动深度
+  scrollThresholds?: number[]; // 默认 [25, 50, 75, 90, 100]
   autoDetectSource?: boolean; // 默认 true，自动识别 direct/organic/social/paid/referral
   preferUTM?: boolean; // 默认 true，若有 UTM 则优先使用 UTM
 }
@@ -100,6 +87,7 @@ let trackerOptions: Required<AutoTrackerOptions> | null = null;
 let persistedUserId: string | null = null;
 let currentPageStartTime = 0;
 let maxScrollDepthPercent = 0;
+let isFirstVisit = false;
 
 // For cleanup
 let removeListeners: Array<() => void> = [];
@@ -112,12 +100,10 @@ function getDefaultedOptions(options: AutoTrackerOptions): Required<AutoTrackerO
     getAuthHeaders: options.getAuthHeaders || (async () => ({})),
     userId: options.userId || "",
     storageKeyUserId: options.storageKeyUserId || "xd_user_id",
+    storageKeyFirstVisit: options.storageKeyFirstVisit || "xd_first_visit",
     trackClicks: options.trackClicks ?? true,
-    trackForms: options.trackForms ?? true,
     trackScrollDepth: options.trackScrollDepth ?? true,
-    trackPageViews: options.trackPageViews ?? true,
-    trackDwellTime: options.trackDwellTime ?? true,
-    scrollReportOnLeaveOnly: options.scrollReportOnLeaveOnly ?? true,
+    scrollThresholds: options.scrollThresholds || [25, 50, 75, 90, 100],
     autoDetectSource: options.autoDetectSource ?? true,
     preferUTM: options.preferUTM ?? true,
   } as Required<AutoTrackerOptions>;
@@ -149,6 +135,20 @@ function ensureUserId(storageKey: string, provided?: string): string {
     return id;
   } catch (_) {
     return provided || generateUUID();
+  }
+}
+
+function checkFirstVisit(storageKey: string): boolean {
+  if (!isBrowser) return false;
+  try {
+    const visited = localStorage.getItem(storageKey);
+    if (!visited) {
+      localStorage.setItem(storageKey, "1");
+      return true;
+    }
+    return false;
+  } catch (_) {
+    return false;
   }
 }
 
@@ -426,18 +426,18 @@ function getClickElementInfo(target: EventTarget | null): Pick<XDClickEvent, "el
 }
 
 function onClick(ev: MouseEvent): void {
-  if (!trackerEnabled || !trackerOptions?.trackClicks) return;
-  if (!trackerOptions) return;
+  if (!trackerEnabled || !trackerOptions || !trackerOptions.trackClicks) return;
   const businessIdSource = trackerOptions.businessId;
-  const base = buildBaseEvent("click");
+  const base = buildBaseEvent("Click");
   resolveBusinessId(businessIdSource).then((businessId) => {
     const info = getClickElementInfo(ev.target);
-    const event: XDClickEvent = { ...base, eventType: "click", businessId, ...info };
+    const event: XDClickEvent = { ...base, eventType: "Click", businessId, ...info };
     void sendEvent(event);
   });
 }
 
 function computeScrollDepthPercent(): number {
+  if (!isBrowser) return 0;
   const body = document.documentElement || document.body;
   const scrollTop = window.pageYOffset || body.scrollTop || 0;
   const viewportHeight = window.innerHeight || body.clientHeight || 0;
@@ -458,16 +458,28 @@ function onScroll(): void {
   if (scrollDepthRaf) return;
   scrollDepthRaf = requestAnimationFrame(() => {
     scrollDepthRaf = 0;
-    maxScrollDepthPercent = Math.max(maxScrollDepthPercent, computeScrollDepthPercent());
-    if (!trackerOptions?.scrollReportOnLeaveOnly) {
-      // Report incrementally at thresholds 25/50/75/100
-      const thresholds = [25, 50, 75, 100];
-      const reached = thresholds.find(t => maxScrollDepthPercent === t);
-      if (typeof reached === "number") {
-        const base = buildBaseEvent("scrollDepth");
-        const businessIdSource = trackerOptions!.businessId;
+    const newDepth = computeScrollDepthPercent();
+    const oldDepth = maxScrollDepthPercent;
+    maxScrollDepthPercent = Math.max(maxScrollDepthPercent, newDepth);
+    
+    // 如果达到了新的阈值，上报滚动深度事件
+    if (maxScrollDepthPercent > oldDepth) {
+      // 再次检查 trackerOptions，因为可能在异步操作中已经被清除
+      if (!trackerOptions) return;
+      
+      const thresholds = trackerOptions.scrollThresholds;
+      const reachedThreshold = thresholds.find(t => oldDepth < t && maxScrollDepthPercent >= t);
+      
+      if (reachedThreshold) {
+        const base = buildBaseEvent("ScrollDepth");
+        const businessIdSource = trackerOptions.businessId;
         resolveBusinessId(businessIdSource).then((businessId) => {
-          const event: XDScrollDepthEvent = { ...base, eventType: "scrollDepth", businessId, maxDepthPercent: maxScrollDepthPercent };
+          const event: XDScrollDepthEvent = { 
+            ...base, 
+            eventType: "ScrollDepth", 
+            businessId, 
+            maxDepthPercent: maxScrollDepthPercent
+          };
           void sendEvent(event);
         });
       }
@@ -485,76 +497,45 @@ function getCurrentDwellMs(): number {
 }
 
 function onPageView(): void {
-  if (!trackerEnabled || !trackerOptions || !trackerOptions.trackPageViews) return;
-  const base = buildBaseEvent("pageView");
+  if (!trackerEnabled || !trackerOptions) return;
+  const base = buildBaseEvent("PageView");
   const businessIdSource = trackerOptions.businessId;
   resolveBusinessId(businessIdSource).then((businessId) => {
-    const event: XDPageViewEvent = { ...base, eventType: "pageView", businessId };
+    const event: XDPageViewEvent = { 
+      ...base, 
+      eventType: "PageView", 
+      businessId,
+      isFirstVisit
+    };
     void sendEvent(event);
   });
 }
 
 function onPageLeave(useBeacon = true): void {
-  if (!trackerEnabled) return;
-  if (!trackerOptions) return;
-  const dwellMs = getCurrentDwellMs();
-
-  if (trackerOptions?.trackDwellTime) {
-    const baseDwell = buildBaseEvent("dwellTime");
-    const businessIdSource = trackerOptions.businessId;
-    resolveBusinessId(businessIdSource).then((businessId) => {
-      const dwellEvent: XDDwellTimeEvent = { ...baseDwell, eventType: "dwellTime", businessId, durationMs: dwellMs };
-      void sendEvent(dwellEvent, useBeacon);
-    });
-  }
-
-  if (trackerOptions?.trackPageViews) {
-    const baseLeave = buildBaseEvent("pageLeave");
-    const businessIdSource2 = trackerOptions.businessId;
-    resolveBusinessId(businessIdSource2).then((businessId) => {
-      const leaveEvent: XDPageLeaveEvent = { ...baseLeave, eventType: "pageLeave", businessId };
-      void sendEvent(leaveEvent, useBeacon);
-    });
-  }
-
-  if (trackerOptions?.trackScrollDepth) {
-    const baseScroll = buildBaseEvent("scrollDepth");
-    const businessIdSource3 = trackerOptions.businessId;
-    resolveBusinessId(businessIdSource3).then((businessId) => {
-      const scrollEvent: XDScrollDepthEvent = { ...baseScroll, eventType: "scrollDepth", businessId, maxDepthPercent: Math.max(maxScrollDepthPercent, computeScrollDepthPercent()) };
-      void sendEvent(scrollEvent, useBeacon);
-    });
-  }
-}
-
-function onFormSubmit(ev: Event): void {
-  if (!trackerEnabled || !trackerOptions?.trackForms) return;
-  if (!trackerOptions) return;
-  const target = ev.target as HTMLFormElement | null;
-  if (!target) return;
-  const method = (target.getAttribute("method") || target.method || "").toUpperCase() || undefined;
-  const action = target.getAttribute("action") || target.action || undefined;
-
-  const fieldNames: string[] = [];
-  try {
-    const elements = Array.from(target.elements) as Array<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>;
-    for (const el of elements) {
-      const name = (el.getAttribute("name") || (el as any).name || "").trim();
-      if (name) fieldNames.push(name);
-    }
-  } catch (_) {}
-
-  const base = buildBaseEvent("formSubmit");
+  if (!trackerEnabled || !trackerOptions) return;
+  
+  // 发送 PageLeave 事件，包含停留时间和最大滚动深度
+  const dwellTimeMs = getCurrentDwellMs();
+  const currentScrollDepth = Math.max(maxScrollDepthPercent, computeScrollDepthPercent());
+  
+  const baseLeave = buildBaseEvent("PageLeave");
   const businessIdSource = trackerOptions.businessId;
   resolveBusinessId(businessIdSource).then((businessId) => {
-    const event: XDFormSubmitEvent = { ...base, eventType: "formSubmit", businessId, action, method, fieldNames: fieldNames.length ? fieldNames : undefined };
-    void sendEvent(event);
+    const leaveEvent: XDPageLeaveEvent = { 
+      ...baseLeave, 
+      eventType: "PageLeave", 
+      businessId,
+      maxScrollDepth: currentScrollDepth,
+      dwellTimeMs
+    };
+    void sendEvent(leaveEvent, useBeacon);
   });
 }
 
 function listenToRouteChanges(): void {
   // popstate
   const onPop = () => {
+    onPageLeave(false);
     startPageTimers();
     onPageView();
   };
@@ -565,11 +546,13 @@ function listenToRouteChanges(): void {
   const origPush = history.pushState;
   const origReplace = history.replaceState;
   history.pushState = function(...args: any[]) {
+    onPageLeave(false);
     origPush.apply(history, args as any);
     startPageTimers();
     onPageView();
   } as any;
   history.replaceState = function(...args: any[]) {
+    onPageLeave(false);
     origReplace.apply(history, args as any);
     startPageTimers();
     onPageView();
@@ -583,11 +566,6 @@ function addCoreListeners(): void {
   const clickHandler = (e: MouseEvent) => onClick(e);
   document.addEventListener("click", clickHandler, { capture: true, passive: true } as any);
   removeListeners.push(() => document.removeEventListener("click", clickHandler, { capture: true } as any));
-
-  // Forms
-  const formHandler = (e: Event) => onFormSubmit(e);
-  document.addEventListener("submit", formHandler, { capture: true } as any);
-  removeListeners.push(() => document.removeEventListener("submit", formHandler, { capture: true } as any));
 
   // Scroll depth
   const scrollHandler = () => onScroll();
@@ -618,10 +596,11 @@ export async function enableAutoTracker(options: AutoTrackerOptions): Promise<vo
   if (!isBrowser) return;
   trackerOptions = getDefaultedOptions(options);
   persistedUserId = ensureUserId(trackerOptions.storageKeyUserId, trackerOptions.userId);
+  isFirstVisit = checkFirstVisit(trackerOptions.storageKeyFirstVisit);
   trackerEnabled = true;
 
   startPageTimers();
-  if (trackerOptions.trackPageViews) onPageView();
+  onPageView();
   addCoreListeners();
 }
 
@@ -642,22 +621,42 @@ export function setBusinessId(businessId: string): void {
   trackerOptions.businessId = businessId as any;
 }
 
-export async function trackEvent(eventType: XDEventType, extra?: Partial<Omit<XDEvent, keyof XDBaseEvent | "eventType">>): Promise<void> {
+export async function trackEvent(eventType: XDEventType, extra?: Record<string, any>): Promise<void> {
   if (!trackerOptions) return;
   const base = buildBaseEvent(eventType);
   const businessId = await resolveBusinessId(trackerOptions.businessId);
-  const merged: any = { ...base, eventType, businessId };
-
-  // attach extra fields by event type
-  if (eventType === "dwellTime") {
-    merged.durationMs = (extra as Partial<XDDwellTimeEvent>)?.durationMs ?? getCurrentDwellMs();
-  } else if (eventType === "scrollDepth") {
-    merged.maxDepthPercent = (extra as Partial<XDScrollDepthEvent>)?.maxDepthPercent ?? Math.max(maxScrollDepthPercent, computeScrollDepthPercent());
-  } else if (eventType === "click") {
-    Object.assign(merged, extra);
-  } else if (eventType === "formSubmit") {
-    Object.assign(merged, extra);
+  
+  let event: XDEvent;
+  
+  switch(eventType) {
+    case "PageView":
+      event = { ...base, eventType, businessId, ...extra } as XDPageViewEvent;
+      break;
+    case "PageLeave":
+      event = { 
+        ...base, 
+        eventType, 
+        businessId, 
+        maxScrollDepth: (extra?.maxScrollDepth as number) ?? Math.max(maxScrollDepthPercent, computeScrollDepthPercent()),
+        dwellTimeMs: (extra?.dwellTimeMs as number) ?? getCurrentDwellMs(),
+        ...extra 
+      } as XDPageLeaveEvent;
+      break;
+    case "ScrollDepth":
+      event = { 
+        ...base, 
+        eventType, 
+        businessId, 
+        maxDepthPercent: (extra?.maxDepthPercent as number) ?? Math.max(maxScrollDepthPercent, computeScrollDepthPercent()),
+        ...extra 
+      } as XDScrollDepthEvent;
+      break;
+    case "Click":
+      event = { ...base, eventType, businessId, ...extra } as XDClickEvent;
+      break;
+    default:
+      event = { ...base, eventType, businessId } as XDEvent;
   }
 
-  await sendEvent(merged as XDEvent);
+  await sendEvent(event);
 } 
