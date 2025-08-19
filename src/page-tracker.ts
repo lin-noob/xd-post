@@ -1,4 +1,4 @@
-// PostHog reporting removed
+// Simple page tracking implementation
 
 const isBrowser = typeof window !== "undefined" && typeof document !== "undefined";
 
@@ -29,6 +29,7 @@ class PageViewTracker {
   private lastVisibilityChangeTime: number | null = null;
   private totalVisibleTime = 0;
   private lastHeartbeatTime = 0;
+  private eventHandlers: Array<(event: PageViewEvent, eventType: string) => void> = [];
 
   constructor(page: string, options: PageViewTrackerOptions = {}) {
     this.currentPage = page;
@@ -42,6 +43,20 @@ class PageViewTracker {
       customProperties: {},
       ...options,
     };
+  }
+
+  /**
+   * 添加事件处理器，用于接收页面停留时间事件
+   */
+  addEventListener(handler: (event: PageViewEvent, eventType: string) => void): void {
+    this.eventHandlers.push(handler);
+  }
+
+  /**
+   * 移除事件处理器
+   */
+  removeEventListener(handler: (event: PageViewEvent, eventType: string) => void): void {
+    this.eventHandlers = this.eventHandlers.filter(h => h !== handler);
   }
 
   start(): void {
@@ -184,10 +199,15 @@ class PageViewTracker {
       ...this.options.customProperties,
     };
 
-    // Intentionally no-op: external reporting handled elsewhere
+    // 触发所有注册的事件处理器
+    this.eventHandlers.forEach(handler => {
+      try {
+        handler(event, eventType);
+      } catch (e) {
+        console.error('Error in page view event handler:', e);
+      }
+    });
   }
-
-  // private getSessionId(): string { return `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`; }
 
   destroy(): void {
     this.stop();
@@ -300,6 +320,24 @@ function setupPageVisibilityListener(): void {
       startAutoTracking();
     }
   });
+}
+
+/**
+ * 添加页面停留时间事件监听器
+ */
+export function addPageViewEventListener(handler: (event: PageViewEvent, eventType: string) => void): void {
+  if (globalPageTracker) {
+    globalPageTracker.addEventListener(handler);
+  }
+}
+
+/**
+ * 移除页面停留时间事件监听器
+ */
+export function removePageViewEventListener(handler: (event: PageViewEvent, eventType: string) => void): void {
+  if (globalPageTracker) {
+    globalPageTracker.removeEventListener(handler);
+  }
 }
 
 export function startPageViewTracking(

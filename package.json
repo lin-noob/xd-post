@@ -24,12 +24,8 @@
     "clean": "rimraf dist",
     "prepublishOnly": "npm run clean && npm run build"
   },
-  "peerDependencies": {
-    "posthog-js": "^1.0.0"
-  },
   "devDependencies": {
     "@types/node": "^20.11.0",
-    "posthog-js": "^1.124.0",
     "rimraf": "^6.0.0",
     "tsup": "^7.2.0",
     "typescript": "^5.5.0"
