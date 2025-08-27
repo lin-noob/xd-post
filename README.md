@@ -288,6 +288,28 @@ enableAutoPageTracking({
 disableAutoPageTracking();
 ```
 
+#### 页面停留时间自动上报（新增功能）
+
+```typescript
+import { enableAutoTracker } from './index';
+
+// 启用全量自动埋点，包括页面停留时间自动上报
+enableAutoTracker({
+  endpoint: 'https://your-api-endpoint.com/track',
+  // 页面停留时间配置
+  pageDwellTime: {
+    enabled: true,        // 启用页面停留时间自动上报
+    interval: 10000,      // 每10秒自动上报一次
+    eventName: 'PageDwellTime' // 自定义事件名称
+  }
+});
+
+// 手动触发页面停留时间上报
+import { trackPageDwellTime } from './index';
+trackPageDwellTime(); // 使用默认配置上报
+trackPageDwellTime('CustomDwellTimeEvent'); // 使用自定义事件名上报
+```
+
 ### 自定义弹窗样式
 
 弹窗样式可以通过修改 `popup.ts` 中的 CSS 来自定义，或者通过 `zIndex` 选项调整层级。

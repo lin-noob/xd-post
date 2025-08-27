@@ -18,6 +18,9 @@ export interface PageViewTrackerOptions {
   maxDuration?: number;
   heartbeatInterval?: number;
   customProperties?: Record<string, any>;
+  // 用户活跃检测相关配置
+  trackUserActivity?: boolean;
+  inactivityThreshold?: number; // 用户不活跃阈值（毫秒），默认5分钟
 }
 
 class PageViewTracker {
@@ -30,10 +33,20 @@ class PageViewTracker {
   private totalVisibleTime = 0;
   private lastHeartbeatTime = 0;
   private eventHandlers: Array<(event: PageViewEvent, eventType: string) => void> = [];
+  
+  // 用户活跃检测相关属性
+  private lastActivityTime: number;
+  private isPageVisible: boolean;
+  private isUserActive: boolean;
+  private activityCheckTimer: NodeJS.Timeout | null = null;
 
   constructor(page: string, options: PageViewTrackerOptions = {}) {
     this.currentPage = page;
     this.startTime = Date.now();
+    this.lastActivityTime = this.startTime;
+    this.isPageVisible = !document.hidden;
+    this.isUserActive = true;
+    
     this.options = {
       trackOnUnload: true,
       trackOnVisibilityChange: true,
@@ -41,6 +54,8 @@ class PageViewTracker {
       maxDuration: 300000,
       heartbeatInterval: 30000,
       customProperties: {},
+      trackUserActivity: true,
+      inactivityThreshold: 300000, // 5分钟
       ...options,
     };
   }
@@ -65,6 +80,7 @@ class PageViewTracker {
     this.isTracking = true;
     this.startTime = Date.now();
     this.lastHeartbeatTime = this.startTime;
+    this.lastActivityTime = this.startTime;
 
     if (this.options.trackOnUnload) {
       this.setupUnloadListener();
@@ -72,6 +88,11 @@ class PageViewTracker {
 
     if (this.options.trackOnVisibilityChange) {
       this.setupVisibilityChangeListener();
+    }
+
+    // 如果启用了用户活跃检测，则设置相关监听器
+    if (this.options.trackUserActivity) {
+      this.setupUserActivityListener();
     }
 
     this.setupHeartbeat();
@@ -96,8 +117,13 @@ class PageViewTracker {
 
   trackCurrentDuration(): void {
     if (!this.isTracking) return;
-    const duration = this.calculateDuration();
-    this.trackPageView(duration);
+    
+    // 只有在用户活跃时才上报停留时间
+    if (this.shouldReportDuration()) {
+      const duration = this.calculateDuration();
+      this.trackPageView(duration);
+    }
+    
     this.startTime = Date.now();
     this.lastHeartbeatTime = this.startTime;
   }
@@ -112,6 +138,8 @@ class PageViewTracker {
     startTime: number;
     currentDuration: number;
     totalVisibleTime: number;
+    isUserActive: boolean;
+    isPageVisible: boolean;
   } {
     return {
       isTracking: this.isTracking,
@@ -119,7 +147,24 @@ class PageViewTracker {
       startTime: this.startTime,
       currentDuration: this.calculateDuration(),
       totalVisibleTime: this.totalVisibleTime,
+      isUserActive: this.isUserActive,
+      isPageVisible: this.isPageVisible,
     };
+  }
+
+  // 检查是否应该上报停留时间
+  private shouldReportDuration(): boolean {
+    // 如果页面不可见，则不上报
+    if (!this.isPageVisible) {
+      return false;
+    }
+    
+    // 如果启用了用户活跃检测，且用户不活跃，则不上报
+    if (this.options.trackUserActivity && !this.isUserActive) {
+      return false;
+    }
+    
+    return true;
   }
 
   private setupUnloadListener(): void {
@@ -137,6 +182,8 @@ class PageViewTracker {
   private setupVisibilityChangeListener(): void {
     const handleVisibilityChange = () => {
       const now = Date.now();
+      this.isPageVisible = !document.hidden;
+      
       if (document.hidden) {
         if (this.lastVisibilityChangeTime) {
           this.totalVisibleTime += now - this.lastVisibilityChangeTime;
@@ -144,10 +191,37 @@ class PageViewTracker {
         this.lastVisibilityChangeTime = null;
       } else {
         this.lastVisibilityChangeTime = now;
+        // 页面重新可见时更新活动时间
+        this.lastActivityTime = now;
       }
     };
 
     document.addEventListener("visibilitychange", handleVisibilityChange);
+  }
+
+  // 设置用户活跃检测监听器
+  private setupUserActivityListener(): void {
+    const handleUserActivity = () => {
+      this.lastActivityTime = Date.now();
+      this.isUserActive = true;
+    };
+
+    // 监听用户交互事件
+    const events = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart', 'click'];
+    events.forEach(event => {
+      document.addEventListener(event, handleUserActivity, { passive: true });
+    });
+
+    // 定期检查用户是否活跃
+    this.activityCheckTimer = setInterval(() => {
+      const now = Date.now();
+      const inactivityTime = now - this.lastActivityTime;
+      
+      // 如果用户超过设定的不活跃阈值，则标记为不活跃
+      if (inactivityTime > (this.options.inactivityThreshold || 300000)) {
+        this.isUserActive = false;
+      }
+    }, 1000); // 每秒检查一次
   }
 
   private setupHeartbeat(): void {
@@ -174,6 +248,11 @@ class PageViewTracker {
       clearInterval(this.heartbeatTimer);
       this.heartbeatTimer = null;
     }
+    
+    if (this.activityCheckTimer) {
+      clearInterval(this.activityCheckTimer);
+      this.activityCheckTimer = null;
+    }
   }
 
   private calculateDuration(): number {
@@ -186,6 +265,11 @@ class PageViewTracker {
     
     // 如果超过最大时长，不上报
     if (this.options.maxDuration && duration > this.options.maxDuration) {
+      return;
+    }
+
+    // 只有在用户活跃时才上报停留时间
+    if (!this.shouldReportDuration()) {
       return;
     }
 
@@ -231,6 +315,8 @@ export function enableAutoPageTracking(options: PageViewTrackerOptions = {}): vo
     maxDuration: 300000,      // 最大停留时间 5 分钟
     heartbeatInterval: 30000, // 心跳间隔 30 秒
     customProperties: {},
+    trackUserActivity: true,  // 启用用户活跃检测
+    inactivityThreshold: 300000, // 5分钟不活跃阈值
     ...options
   };
   
