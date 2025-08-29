@@ -45,6 +45,7 @@ export interface XDBaseEvent {
   pageTitle?: string;
   pageURL?: string;
   sessionId: string;
+  sdk: string; // 应用ID，必填字段
   businessId?: string;
   // IP 和地理位置信息（通常由服务端填充或通过配置提供）
   // ip?: string; // IP 地址
@@ -232,6 +233,7 @@ export interface UserProperties {
 
 export interface AutoTrackerOptions {
   endpoint: string; // API 接口地址
+  sdk: string; // 应用ID，必填参数，用于标识不同的应用
   sseUrl?: string; // SSE 连接地址
   source?: string; // 自定义来源，作为基础字段之一，若不提供则自动识别
   businessId?: string | (() => string | Promise<string>);
@@ -610,11 +612,18 @@ function checkFirstVisit(storageKey: string): boolean {
 // 配置管理
 // =============================================================================
 
+type DefaultedAutoTrackerOptions = Omit<Required<AutoTrackerOptions>, 'source' | 'businessId' | 'sseUrl'> & {
+  source?: string;
+  businessId?: string | (() => string | Promise<string>);
+  sseUrl?: string;
+};
+
 function getDefaultedOptions(
   options: AutoTrackerOptions
-): Required<AutoTrackerOptions> {
+): DefaultedAutoTrackerOptions {
   return {
     endpoint: options.endpoint,
+    sdk: options.sdk,
     source: options.source || undefined,
     businessId: options.businessId ?? undefined,
     getAuthHeaders: options.getAuthHeaders || (async () => ({})),
@@ -639,11 +648,11 @@ function getDefaultedOptions(
         options.userActivityTracking?.inactivityThreshold ?? 300000, // 5分钟
     },
     sseUrl: options.sseUrl ?? "/quote/api/sse",
-  } as Required<AutoTrackerOptions>;
+  };
 }
 
 async function resolveBusinessId(
-  biz: Required<AutoTrackerOptions>["businessId"]
+  biz: DefaultedAutoTrackerOptions["businessId"]
 ): Promise<string | undefined> {
   try {
     if (typeof biz === "function") {
@@ -710,6 +719,7 @@ function buildBaseEvent(eventType: XDEventType): XDBaseEvent {
     pageTitle: isBrowser ? document.title : undefined,
     pageURL: href,
     sessionId: persistedUserId || "",
+    sdk: trackerOptions?.sdk || "",
     businessId:
       typeof trackerOptions?.businessId === "string"
         ? trackerOptions.businessId
@@ -830,7 +840,7 @@ async function sendEvent(event: XDEvent, useBeacon = false): Promise<void> {
 // =============================================================================
 
 let trackerEnabled = false;
-let trackerOptions: Required<AutoTrackerOptions> | null = null;
+let trackerOptions: DefaultedAutoTrackerOptions | null = null;
 let persistedUserId: string | null = null;
 let userProperties: UserProperties = {};
 let currentPageStartTime = 0;
@@ -1269,6 +1279,11 @@ export async function enableAutoTracker(
   options: AutoTrackerOptions
 ): Promise<void> {
   if (!isBrowser) return;
+
+  // 验证必填参数
+  if (!options.sdk) {
+    throw new Error("[XD-Tracker] sdk is required");
+  }
 
   // 如果已经启用，先清理之前的状态（但保留已绑定的事件）
   if (trackerEnabled) {
