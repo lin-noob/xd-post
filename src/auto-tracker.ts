@@ -1248,7 +1248,14 @@ function addCoreListeners(): void {
 
   // Page leave
   if (!boundEvents.has("unload")) {
-    const leaveHandler = () => onPageLeave(true);
+    const leaveHandler = () => {
+      // 在页面离开前断开 SSE 连接
+      if (sseClient) {
+        console.log("[XD-Tracker] 页面即将离开，断开 SSE 连接");
+        sseClient.disconnect();
+      }
+      onPageLeave(true);
+    };
     window.addEventListener("beforeunload", leaveHandler);
     window.addEventListener("pagehide", leaveHandler);
     removeListeners.push(() =>
