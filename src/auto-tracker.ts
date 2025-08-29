@@ -612,7 +612,10 @@ function checkFirstVisit(storageKey: string): boolean {
 // 配置管理
 // =============================================================================
 
-type DefaultedAutoTrackerOptions = Omit<Required<AutoTrackerOptions>, 'source' | 'businessId' | 'sseUrl'> & {
+type DefaultedAutoTrackerOptions = Omit<
+  Required<AutoTrackerOptions>,
+  "source" | "businessId" | "sseUrl"
+> & {
   source?: string;
   businessId?: string | (() => string | Promise<string>);
   sseUrl?: string;
@@ -802,6 +805,10 @@ async function sendEvent(event: XDEvent, useBeacon = false): Promise<void> {
     ...userProperties,
   };
 
+  if (!eventWithUserProps.sdk) {
+    return;
+  }
+
   const payload = JSON.stringify({
     eventName: eventWithUserProps.eventType,
     properties: eventWithUserProps,
@@ -810,6 +817,7 @@ async function sendEvent(event: XDEvent, useBeacon = false): Promise<void> {
     userId: eventWithUserProps?.id ?? eventWithUserProps?.userId ?? undefined,
     userName: eventWithUserProps?.userName ?? undefined,
     sessionId: eventWithUserProps.sessionId,
+    sdk: eventWithUserProps.sdk,
   });
 
   if (useBeacon && isBrowser && "sendBeacon" in navigator) {
