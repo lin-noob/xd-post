@@ -103,6 +103,7 @@ function ensureStylesInjected(zIndex: number): void {
   
   .xdp-overlay {
     position: fixed;
+    z-index: ${zIndex};
     inset: 0;
     background: rgba(0, 0, 0, 0.6);
     backdrop-filter: blur(4px);
@@ -111,6 +112,11 @@ function ensureStylesInjected(zIndex: number): void {
     justify-content: center;
     padding: 20px;
     animation: xdp-fade-in 0.3s ease-out;
+    pointer-events: none; /* 不影响页面点击 */
+  }
+  
+  .xdp-overlay.xdp-has-overlay {
+    pointer-events: auto; /* 当显示遮罩时才捕获事件 */
   }
   
   .xdp-dialog {
@@ -127,6 +133,7 @@ function ensureStylesInjected(zIndex: number): void {
     color: #1a1a1a;
     animation: xdp-slide-up 0.4s ease-out;
     border: 1px solid rgba(255, 255, 255, 0.2);
+    pointer-events: auto; /* 弹窗可以接收点击事件 */
   }
   
   /* Position styles */
@@ -308,9 +315,9 @@ function ensureStylesInjected(zIndex: number): void {
   }
   
   .xdp-root {
-    position: fixed;
-    inset: 0;
-    z-index: ${zIndex};
+    // position: fixed;
+    // inset: 0;
+    // z-index: ${zIndex};
   }
   
   @media (max-width: 640px) {

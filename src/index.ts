@@ -1,5 +1,5 @@
 import { startPageViewTracking, stopPageViewTracking, trackCurrentPageDuration, getPageViewTracker, getCurrentPageDuration, getPageViewTrackingStatus, enableAutoPageTracking, disableAutoPageTracking, addPageViewEventListener, removePageViewEventListener } from "./page-tracker";
-import { enableAutoTracker, disableAutoTracker, identify as identifyUser, reset as resetUser, setBusinessId, trackEvent, getTrackerStatus, resetTracker, updateGeoInfo, type UserProperties, type XDEventType, type XDBaseEvent, type XDPageViewEvent, type XDPageLeaveEvent, type XDScrollDepthEvent, type XDClickEvent, type XDViewProductEvent, type XDAddToCartEvent, type XDRemoveFromCartEvent, type XDStartCheckoutEvent, type XDCompletePurchaseEvent, type XDUserRegisterEvent, type XDUserLoginEvent, type XDSubmitFormEvent, type XDSearchEvent, type XDPageDwellTimeEvent, trackViewProduct, trackAddToCart, trackRemoveFromCart, trackStartCheckout, trackCompletePurchase, trackUserRegister, trackUserLogin, trackSubmitForm, trackSearch, trackPageDwellTime, getSSEClient, updateSSESessionId, setSSEAutoHandlePopup, getSSEAutoHandlePopup } from "./auto-tracker";
+import { enableAutoTracker, disableAutoTracker, identify as identifyUser, reset as resetUser, setBusinessId, trackEvent, getTrackerStatus, resetTracker, updateGeoInfo, type UserProperties, type XDEventType, type XDBaseEvent, type XDPageViewEvent, type XDPageLeaveEvent, type XDScrollDepthEvent, type XDClickEvent, type XDViewProductEvent, type XDAddToCartEvent, type XDRemoveFromCartEvent, type XDStartCheckoutEvent, type XDCompletePurchaseEvent, type XDUserRegisterEvent, type XDUserLoginEvent, type XDSubmitFormEvent, type XDSearchEvent, type XDPageDwellTimeEvent, trackViewProduct, trackAddToCart, trackRemoveFromCart, trackStartCheckout, trackCompletePurchase, trackUserRegister, trackUserLogin, trackSubmitForm, trackSearch, trackPageDwellTime, getWebSocketClient, updateWebSocketSessionId, setWebSocketAutoHandlePopup, getWebSocketAutoHandlePopup } from "./auto-tracker";
 
 // 简单的运行时守卫以避免 SSR 崩溃
 const isBrowser =
@@ -66,11 +66,11 @@ export type XDTracker = {
   resetTracker: typeof resetTracker;
   // 新增：地理位置信息更新
   updateGeoInfo: typeof updateGeoInfo;
-  // 新增：SSE 客户端管理
-  getSSEClient: typeof getSSEClient;
-  updateSSESessionId: typeof updateSSESessionId;
-  setSSEAutoHandlePopup: typeof setSSEAutoHandlePopup;
-  getSSEAutoHandlePopup: typeof getSSEAutoHandlePopup;
+  // 新增：WebSocket 客户端管理
+  getWebSocketClient: typeof getWebSocketClient;
+  updateWebSocketSessionId: typeof updateWebSocketSessionId;
+  setWebSocketAutoHandlePopup: typeof setWebSocketAutoHandlePopup;
+  getWebSocketAutoHandlePopup: typeof getWebSocketAutoHandlePopup;
 };
 
 // 导出用户属性接口
@@ -127,10 +127,10 @@ const xdTracker: XDTracker = {
   getTrackerStatus,
   resetTracker,
   updateGeoInfo,
-  getSSEClient,
-  updateSSESessionId,
-  setSSEAutoHandlePopup,
-  getSSEAutoHandlePopup
+  getWebSocketClient,
+  updateWebSocketSessionId,
+  setWebSocketAutoHandlePopup,
+  getWebSocketAutoHandlePopup
 };
 
 export default xdTracker;

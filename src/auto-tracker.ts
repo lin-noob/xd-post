@@ -12,7 +12,7 @@
  */
 
 import { showPopupFromStrategy } from "./popup";
-import { SSEClient } from "./sse-client";
+import { WebSocketClient } from "./websocket-client";
 
 // =============================================================================
 // 类型定义
@@ -234,7 +234,7 @@ export interface UserProperties {
 export interface AutoTrackerOptions {
   endpoint: string; // API 接口地址
   sdk: string; // 应用ID，必填参数，用于标识不同的应用
-  sseUrl?: string; // SSE 连接地址
+  websocketUrl?: string; // WebSocket 连接地址
   source?: string; // 自定义来源，作为基础字段之一，若不提供则自动识别
   businessId?: string | (() => string | Promise<string>);
   getAuthHeaders?: () =>
@@ -614,11 +614,11 @@ function checkFirstVisit(storageKey: string): boolean {
 
 type DefaultedAutoTrackerOptions = Omit<
   Required<AutoTrackerOptions>,
-  "source" | "businessId" | "sseUrl"
+  "source" | "businessId" | "websocketUrl"
 > & {
   source?: string;
   businessId?: string | (() => string | Promise<string>);
-  sseUrl?: string;
+  websocketUrl?: string;
 };
 
 function getDefaultedOptions(
@@ -650,7 +650,7 @@ function getDefaultedOptions(
       inactivityThreshold:
         options.userActivityTracking?.inactivityThreshold ?? 300000, // 5分钟
     },
-    sseUrl: options.sseUrl ?? "/quote/api/sse",
+    websocketUrl: options.websocketUrl ?? "/quote/api/websocket",
   };
 }
 
@@ -854,7 +854,7 @@ let userProperties: UserProperties = {};
 let currentPageStartTime = 0;
 let maxScrollDepthPercent = 0;
 let isFirstVisit = false;
-let sseClient: SSEClient | null = null;
+let websocketClient: WebSocketClient | null = null;
 
 // 页面停留时间相关状态
 let pageDwellTimeInterval: number | null = null;
@@ -873,81 +873,81 @@ let boundEvents: Set<string> = new Set();
 // 初始化计数，用于追踪初始化次数
 let initCount = 0;
 
-// SSE 连接初始化
-function initializeSSEConnection(sessionId: string): void {
-  if (!trackerOptions || !trackerOptions.sseUrl) return;
+// WebSocket 连接初始化
+function initializeWebSocketConnection(sessionId: string): void {
+  if (!trackerOptions || !trackerOptions.websocketUrl) return;
 
   try {
-    // 如果已存在 SSE 客户端，检查是否需要更新
-    if (sseClient) {
-      const currentSessionId = sseClient.getSessionId();
-      const currentUrl = sseClient.getUrl();
+    // 如果已存在 WebSocket 客户端，检查是否需要更新
+    if (websocketClient) {
+      const currentSessionId = websocketClient.getSessionId();
+      const currentUrl = websocketClient.getUrl();
 
       // 检查是否需要更新配置
       const needsReconnect =
-        currentUrl !== trackerOptions.sseUrl ||
+        currentUrl !== trackerOptions.websocketUrl ||
         currentSessionId !== trackerOptions.sessionId ||
-        !sseClient.isConnected();
+        !websocketClient.isConnected();
 
       if (!needsReconnect) {
-        console.log("[XD-Tracker] SSE 连接已存在且配置未变化");
+        console.log("[XD-Tracker] WebSocket 连接已存在且配置未变化");
         return;
       }
 
       // 如果 URL 变化，需要重新创建连接
-      if (currentUrl !== trackerOptions.sseUrl) {
-        console.log("[XD-Tracker] SSE URL 变化，重新创建连接");
-        sseClient.disconnect();
-        sseClient = null;
+      if (currentUrl !== trackerOptions.websocketUrl) {
+        console.log("[XD-Tracker] WebSocket URL 变化，重新创建连接");
+        websocketClient.disconnect();
+        websocketClient = null;
         // 继续执行下面的创建新连接逻辑
       }
       // 如果只是 sessionId 变化，使用 updateSessionId
       else if (
         currentSessionId !== trackerOptions.sessionId &&
-        sseClient.isConnected()
+        websocketClient.isConnected()
       ) {
-        console.log("[XD-Tracker] 更新 SSE 连接的 sessionId");
-        sseClient.updateSessionId(trackerOptions.sessionId);
+        console.log("[XD-Tracker] 更新 WebSocket 连接的 sessionId");
+        websocketClient.updateSessionId(trackerOptions.sessionId);
         return;
       }
       // 如果连接断开，尝试重连
-      else if (!sseClient.isConnected()) {
-        console.log("[XD-Tracker] SSE 连接断开，尝试重连");
-        sseClient.reconnect();
+      else if (!websocketClient.isConnected()) {
+        console.log("[XD-Tracker] WebSocket 连接断开，尝试重连");
+        websocketClient.reconnect();
         return;
       }
     }
 
-    // 创建新的 SSE 客户端
-    console.log("[XD-Tracker] 创建新的 SSE 连接");
-    sseClient = new SSEClient({
-      url: trackerOptions.sseUrl,
+    // 创建新的 WebSocket 客户端
+    console.log("[XD-Tracker] 创建新的 WebSocket 连接");
+    websocketClient = new WebSocketClient({
+      url: trackerOptions.websocketUrl,
       sessionId,
       autoHandlePopup: true, // 启用自动弹窗处理
       onOpen: () => {
-        console.log("[XD-Tracker] SSE 连接已建立");
+        console.log("[XD-Tracker] WebSocket 连接已建立");
       },
       onClose: () => {
-        console.log("[XD-Tracker] SSE 连接已关闭");
+        console.log("[XD-Tracker] WebSocket 连接已关闭");
       },
       onError: (error) => {
-        console.error("[XD-Tracker] SSE 连接错误:", error);
+        console.error("[XD-Tracker] WebSocket 连接错误:", error);
       },
-      // 移除 onMessage，让 SSE 客户端内部处理
+      // 移除 onMessage，让 WebSocket 客户端内部处理
     });
 
     // 建立连接
-    sseClient.connect();
+    websocketClient.connect();
 
     // 将清理函数添加到列表中
     removeListeners.push(() => {
-      if (sseClient) {
-        sseClient.disconnect();
-        sseClient = null;
+      if (websocketClient) {
+        websocketClient.disconnect();
+        websocketClient = null;
       }
     });
   } catch (error) {
-    console.error("[XD-Tracker] SSE 初始化失败:", error);
+    console.error("[XD-Tracker] WebSocket 初始化失败:", error);
   }
 }
 
@@ -1249,10 +1249,10 @@ function addCoreListeners(): void {
   // Page leave
   if (!boundEvents.has("unload")) {
     const leaveHandler = () => {
-      // 在页面离开前断开 SSE 连接
-      if (sseClient) {
-        console.log("[XD-Tracker] 页面即将离开，断开 SSE 连接");
-        sseClient.disconnect();
+      // 在页面离开前断开 WebSocket 连接
+      if (websocketClient) {
+        console.log("[XD-Tracker] 页面即将离开，断开 WebSocket 连接");
+        websocketClient.disconnect();
       }
       onPageLeave(true);
     };
@@ -1324,9 +1324,9 @@ export async function enableAutoTracker(
   onPageView();
   addCoreListeners();
 
-  // 初始化 SSE 连接
-  if (trackerOptions.sseUrl) {
-    initializeSSEConnection(persistedUserId);
+  // 初始化 WebSocket 连接
+  if (trackerOptions.websocketUrl) {
+    initializeWebSocketConnection(persistedUserId);
   }
 
   console.log(
@@ -1369,8 +1369,8 @@ export function getTrackerStatus(): {
   sessionId: string | null;
   userProperties: UserProperties;
   isFirstVisit: boolean;
-  sseConnected: boolean;
-  sseUrl?: string;
+  websocketConnected: boolean;
+  websocketUrl?: string;
 } {
   return {
     enabled: trackerEnabled,
@@ -1379,8 +1379,8 @@ export function getTrackerStatus(): {
     sessionId: persistedUserId,
     userProperties,
     isFirstVisit,
-    sseConnected: sseClient?.isConnected() || false,
-    sseUrl: trackerOptions?.sseUrl,
+    websocketConnected: websocketClient?.isConnected() || false,
+    websocketUrl: trackerOptions?.websocketUrl,
   };
 }
 
@@ -1392,18 +1392,18 @@ export function resetTracker(): void {
 }
 
 /**
- * 获取 SSE 客户端实例
+ * 获取 WebSocket 客户端实例
  */
-export function getSSEClient(): SSEClient | null {
-  return sseClient;
+export function getWebSocketClient(): WebSocketClient | null {
+  return websocketClient;
 }
 
 /**
- * 更新 SSE 连接的 sessionId
+ * 更新 WebSocket 连接的 sessionId
  */
-export function updateSSESessionId(sessionId: string): void {
-  if (sseClient) {
-    sseClient.updateSessionId(sessionId);
+export function updateWebSocketSessionId(sessionId: string): void {
+  if (websocketClient) {
+    websocketClient.updateSessionId(sessionId);
   }
   // 同时更新 trackerOptions 中的 sessionId
   if (trackerOptions) {
@@ -1412,19 +1412,19 @@ export function updateSSESessionId(sessionId: string): void {
 }
 
 /**
- * 设置 SSE 是否自动处理弹窗
+ * 设置 WebSocket 是否自动处理弹窗
  */
-export function setSSEAutoHandlePopup(enabled: boolean): void {
-  if (sseClient) {
-    sseClient.setAutoHandlePopup(enabled);
+export function setWebSocketAutoHandlePopup(enabled: boolean): void {
+  if (websocketClient) {
+    websocketClient.setAutoHandlePopup(enabled);
   }
 }
 
 /**
- * 获取 SSE 自动处理弹窗设置
+ * 获取 WebSocket 自动处理弹窗设置
  */
-export function getSSEAutoHandlePopup(): boolean {
-  return sseClient ? sseClient.getAutoHandlePopup() : false;
+export function getWebSocketAutoHandlePopup(): boolean {
+  return websocketClient ? websocketClient.getAutoHandlePopup() : false;
 }
 
 /**
@@ -1464,7 +1464,7 @@ export function reset(): void {
 
   // 清空所有用户属性
   userProperties = {};
-
+  localStorage.removeItem(trackerOptions.storageKeyUserId)
   console.log(`[XD-Tracker] 用户属性已重置，保留用户ID: ${persistedUserId}`);
 }
 
