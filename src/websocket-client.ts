@@ -43,10 +43,7 @@ export class WebSocketClient {
   }
 
   connect(): void {
-    if (
-      this.isConnecting ||
-      this.websocket?.readyState === WebSocket.OPEN
-    ) {
+    if (this.isConnecting || this.websocket?.readyState === WebSocket.OPEN) {
       return;
     }
 
@@ -57,9 +54,7 @@ export class WebSocketClient {
       let url = this.config.url;
       if (this.config.sessionId) {
         const separator = url.includes("?") ? "&" : "?";
-        url = `${url}${separator}sessionId=${encodeURIComponent(
-          this.config.sessionId
-        )}`;
+        url = `${url}/${encodeURIComponent(this.config.sessionId)}`;
       }
 
       // 如果是 http/https 协议，转换为 ws/wss
@@ -87,10 +82,10 @@ export class WebSocketClient {
       console.log("WebSocket connected");
       this.isConnecting = false;
       this.retryAttempts = 0;
-      
+
       // 启动心跳机制
       this.startHeartbeat();
-      
+
       this.config.onOpen?.();
     };
 
@@ -106,12 +101,12 @@ export class WebSocketClient {
     this.websocket.onclose = (event) => {
       console.log("WebSocket closed:", event.code, event.reason);
       this.isConnecting = false;
-      
+
       // 清理心跳
       this.stopHeartbeat();
-      
+
       this.config.onClose?.();
-      
+
       // 如果不是主动关闭，尝试重连
       if (!event.wasClean) {
         this.handleRetry();
@@ -132,7 +127,7 @@ export class WebSocketClient {
 
   private startHeartbeat(): void {
     this.stopHeartbeat();
-    
+
     this.heartbeatTimer = setInterval(() => {
       if (this.websocket && this.websocket.readyState === WebSocket.OPEN) {
         // 发送心跳消息
@@ -149,22 +144,17 @@ export class WebSocketClient {
   }
 
   private handleMessage(data: any): void {
-    // 处理弹窗消息
-    if (data.type === "popup") {
-      this.handlePopupMessage(data);
-      return;
-    }
-    
-    // 处理心跳响应
-    if (data.type === "pong") {
-      // 心跳响应，无需特殊处理
-      return;
-    }
-
-    // 处理通用消息（非弹窗消息）
-    if (data.type !== "popup") {
-      // 可以在这里添加其他类型的消息处理逻辑
-      console.log("[WebSocket] 收到消息:", data);
+    try {
+      // 处理弹窗消息
+      if (data.type === "success") {
+        const message = JSON.parse(data.message);
+        this.handlePopupMessage(message);
+        return;
+      } else {
+        console.log("[WebSocket] 收到消息:", data);
+      }
+    } catch (error) {
+      console.log("[WebSocket] error:", error);
     }
   }
 
@@ -275,7 +265,7 @@ export class WebSocketClient {
   send(data: any): boolean {
     if (this.websocket && this.websocket.readyState === WebSocket.OPEN) {
       try {
-        this.websocket.send(JSON.stringify(data));
+        this.websocket.send(data);
         return true;
       } catch (error) {
         console.error("Failed to send WebSocket message:", error);

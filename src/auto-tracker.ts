@@ -820,6 +820,13 @@ async function sendEvent(event: XDEvent, useBeacon = false): Promise<void> {
     sdk: eventWithUserProps.sdk,
   });
 
+  if (websocketClient && websocketClient.isConnected()) {
+    if (eventWithUserProps.eventType === 'UserLogin') {
+      websocketClient?.send(payload);
+      return;
+    }
+  }
+
   if (useBeacon && isBrowser && "sendBeacon" in navigator) {
     try {
       const blob = new Blob([payload], { type: "application/json" });
@@ -1464,7 +1471,6 @@ export function reset(): void {
 
   // 清空所有用户属性
   userProperties = {};
-  localStorage.removeItem(trackerOptions.storageKeyUserId)
   console.log(`[XD-Tracker] 用户属性已重置，保留用户ID: ${persistedUserId}`);
 }
 
