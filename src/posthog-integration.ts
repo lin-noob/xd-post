@@ -151,19 +151,6 @@ export function initializePostHog(config: PostHogConfig): void {
       batch_interval_ms: config.batch_interval ?? 1000, // 批量发送间隔（毫秒）
 
       loaded: (posthog: any) => {
-        console.log(
-          "[PostHog] Initialized successfully with native autocapture"
-        );
-        console.log("[PostHog] API Host:", config.host);
-        console.log(
-          "[PostHog] API Key:",
-          config.apiKey.substring(0, 10) + "..."
-        );
-        console.log(
-          "[PostHog] Batch Mode:",
-          config.batch_mode ?? false,
-          "- All events will be sent as arrays"
-        );
         isPostHogInitialized = true;
         localStorage.setItem("isPostHogInitialized", "1");
 
@@ -203,6 +190,77 @@ export function capturePostHogEvent(
     posthog.capture(eventName, properties);
   } catch (error) {
     console.error("[PostHog] Failed to capture event:", error);
+  }
+}
+
+export function capturePostHogEventBeacon(
+  eventName: string,
+  properties?: Record<string, any>
+): void {
+  if (!isPostHogEnabled() || !postHogConfig) {
+    return;
+  }
+
+  try {
+    const eventData = {
+      api_key: postHogConfig.apiKey,
+      batch: [
+        {
+          event: eventName,
+          properties: {
+            ...properties,
+            distinct_id: posthog.get_distinct_id?.() || "anonymous",
+            $lib: "web",
+            $lib_version: "1.0.0",
+          },
+          timestamp: new Date().toISOString(),
+        },
+      ],
+    };
+
+    const blob = new Blob([JSON.stringify(eventData)], {
+      type: "application/json",
+    });
+
+    // 使用 sendBeacon API，保证在页面卸载时也能发送
+    const sent = navigator.sendBeacon(postHogConfig.host, blob);
+
+    if (sent) {
+      console.log("[PostHog] Event sent via sendBeacon:", eventName);
+    } else {
+      console.warn(
+        "[PostHog] sendBeacon failed, event may not be sent:",
+        eventName
+      );
+    }
+  } catch (error) {
+    console.error("[PostHog] Failed to send event via sendBeacon:", error);
+  }
+}
+
+/**
+ * 立即刷新批量队列，强制发送所有待发送的事件
+ * 适用于页面跳转前确保事件已发送
+ */
+export function flushPostHogEvents(): void {
+  if (!isPostHogEnabled()) {
+    return;
+  }
+
+  try {
+    // PostHog 没有公开的 flush 方法，但我们可以尝试访问内部方法
+    const posthogInstance = posthog as any;
+    if (typeof posthogInstance._flush === "function") {
+      posthogInstance._flush();
+      console.log("[PostHog] Events flushed");
+    } else if (typeof posthogInstance.flush === "function") {
+      posthogInstance.flush();
+      console.log("[PostHog] Events flushed");
+    } else {
+      console.warn("[PostHog] Flush method not available");
+    }
+  } catch (error) {
+    console.error("[PostHog] Failed to flush events:", error);
   }
 }
 

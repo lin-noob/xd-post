@@ -23,7 +23,7 @@ export * from "./auto-tracker";
 // 导出 popup 功能
 export { showPopup, hidePopup, showPopupFromStrategy, type PopupButton, type PopupPayload, type PopupOptions } from "./popup";
 
-// 导出 SSE 客��端
+// 导出 SSE 客户端
 export { SSEClient, type SSEConfig } from "./sse-client";
 
 // 导出 PostHog 集成
@@ -32,6 +32,10 @@ export {
   capturePageView,
   capturePostHogEvent as track,
   capturePostHogEvent,
+  capturePostHogEventBeacon as trackBeacon,
+  capturePostHogEventBeacon,
+  flushPostHogEvents as flush,
+  flushPostHogEvents,
   setPostHogUserProperties,
   getPostHogInstance
 } from "./posthog-integration";
