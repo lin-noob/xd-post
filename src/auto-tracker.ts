@@ -9,6 +9,7 @@ import {
   identifyPostHogUser,
   resetPostHogUser,
   capturePageView,
+  getPostHogInstance,
 } from "./posthog-integration";
 
 // 导出 capturePageView 供外部使用
@@ -141,7 +142,7 @@ function initializeWebSocketConnection(sessionId: string): void {
         websocketClient.updateSessionId(trackerOptions.sessionId!);
         return;
       }
-      // 如果连接断开，尝试重连
+      // 如果连接��开，尝试重连
       else if (!websocketClient.isConnected()) {
         console.log("[XD-Tracker] WebSocket 连接断开，尝试重连");
         websocketClient.reconnect();
@@ -192,7 +193,9 @@ export async function enableAutoTracker(
 
   // 验证必填参数
   if (!options.posthog || !options.posthog.apiKey || !options.posthog.host) {
-    throw new Error("[XD-Tracker] posthog.apiKey and posthog.host are required");
+    throw new Error(
+      "[XD-Tracker] posthog.apiKey and posthog.host are required"
+    );
   }
 
   // 如果已经启用，先清理之前的状态
@@ -202,13 +205,10 @@ export async function enableAutoTracker(
   }
 
   trackerOptions = options;
-  const storageKey = options.storageKeyUserId || "user_id";
-  persistedUserId = ensureUserId(storageKey, options.sessionId);
   userProperties = { ...options.userProperties };
-  trackerEnabled = true;
 
-  // 初始化 PostHog（使用原生自动采集）
-  initializePostHog({
+  // 初始化 PostHog（使用原生自动采集）并获取 distinct_id
+  const distinctId = await initializePostHog({
     apiKey: options.posthog.apiKey,
     host: options.posthog.host,
     enabled: options.posthog.enabled ?? true,
@@ -217,15 +217,20 @@ export async function enableAutoTracker(
     capture_pageleave: options.posthog.capture_pageleave ?? true,
     session_recording: options.posthog.session_recording,
   });
-  
-  console.log(`[XD-Tracker] PostHog 已初始化（使用原生自动采集），上报地址: ${options.posthog.host}`);
+
+  if (!distinctId) {
+    return;
+  }
+
+  // 使用 PostHog 返回的 distinct_id 作为 persistedUserId
+  persistedUserId = distinctId;
+
+  trackerEnabled = true;
 
   // 初始化 WebSocket 连接（如果配置了）
   if (trackerOptions.websocketUrl) {
     initializeWebSocketConnection(persistedUserId);
   }
-
-  console.log(`[XD-Tracker] 已启用`);
 }
 
 export function disableAutoTracker(fullReset?: boolean): void {
@@ -310,10 +315,7 @@ export function getWebSocketAutoHandlePopup(): boolean {
  * @param userId 用户ID
  * @param properties 用户属性，可包含 email、phone 等
  */
-export function identify(
-  userId: string,
-  properties?: UserProperties
-): void {
+export function identify(userId: string, properties?: UserProperties): void {
   if (!trackerOptions) return;
 
   // 更新用户属性
@@ -338,15 +340,33 @@ export function identify(
 
 /**
  * 重置用户信息，清除所有用户属性
+ * 退出登录时调用，会重新生成 distinct_id 并重新初始化 WebSocket
  */
 export function reset(): void {
   if (!trackerOptions) return;
 
   // 清空所有用户属性
   userProperties = {};
-  
-  // 同步到 PostHog
+
+  // 同步到 PostHog（会重新生成 distinct_id）
   resetPostHogUser();
-  
-  console.log(`[XD-Tracker] 用户属性已重置，保留用户ID: ${persistedUserId}`);
+
+  // 获取新的 distinct_id
+  const posthog = getPostHogInstance();
+  const newDistinctId = posthog.get_distinct_id?.() || generateUUID();
+  // 更新 persistedUserId
+  const oldDistinctId = persistedUserId;
+  persistedUserId = newDistinctId;
+
+  // 如果配置了 WebSocket 且 distinct_id 发生变化
+  if (trackerOptions.websocketUrl && oldDistinctId !== newDistinctId) {
+    // 关闭旧的 WebSocket 连接
+    if (websocketClient) {
+      websocketClient.disconnect();
+      websocketClient = null;
+    }
+
+    // 用新的 distinct_id 重新初始化 WebSocket
+    initializeWebSocketConnection(newDistinctId);
+  }
 }

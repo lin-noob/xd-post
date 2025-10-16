@@ -122,57 +122,67 @@ export function capturePageView(properties?: Record<string, any>): void {
 
 /**
  * 初始化 PostHog
+ * @returns Promise<string> 返回 PostHog 的 distinct_id
  */
-export function initializePostHog(config: PostHogConfig): void {
-  if (isPostHogInitialized) {
-    console.warn("[PostHog] Already initialized");
-    return;
-  }
-
-  if (!config.apiKey) {
-    console.error("[PostHog] API key is required");
-    return;
-  }
-
-  postHogConfig = config;
-
-  try {
-    const initOptions: any = {
-      api_host: config.host,
-      autocapture: config.autocapture ?? true, // 默认启用 PostHog 原生自动采集
-      capture_pageview: "history_change", // 默认启用页面浏览自动追踪
-      capture_pageleave: config.capture_pageleave ?? true, // 默认启用页面离开自动追踪
-      persistence: config.persistence || "localStorage",
-      disable_compression: true,
-
-      // 批量模式配置（统一为对象数组格式）
-      batch_events: config.batch_mode ?? false, // 默认启用批量模式
-      batch_size: config.batch_size ?? 10, // 批量大小
-      batch_interval_ms: config.batch_interval ?? 1000, // 批量发送间隔（毫秒）
-
-      loaded: (posthog: any) => {
-        isPostHogInitialized = true;
-        localStorage.setItem("isPostHogInitialized", "1");
-
-        // 拦截请求，确保所有数据都是对象数组格式
-        if (initOptions.batch_events !== false) {
-          interceptPostHogRequests();
-        }
-      },
-    };
-
-    // 只有在明确启用时才添加 session_recording 配置
-    if (config.session_recording?.enabled) {
-      initOptions.session_recording = config.session_recording;
+export function initializePostHog(config: PostHogConfig): Promise<string> {
+  return new Promise((resolve, reject) => {
+    if (isPostHogInitialized) {
+      console.warn("[PostHog] Already initialized");
+      resolve(posthog.get_distinct_id?.() || "");
+      return;
     }
 
-    posthog.init(config.apiKey, initOptions);
-    posthog.register({
-      cusEventType: "2",
-    });
-  } catch (error) {
-    console.error("[PostHog] Initialization failed:", error);
-  }
+    if (!config.apiKey) {
+      console.error("[PostHog] API key is required");
+      reject(new Error("[PostHog] API key is required"));
+      return;
+    }
+
+    postHogConfig = config;
+
+    try {
+      const initOptions: any = {
+        api_host: config.host,
+        autocapture: config.autocapture ?? true, // 默认启用 PostHog 原生自动采集
+        capture_pageview: "history_change", // 默认启用页面浏览自动追踪
+        capture_pageleave: config.capture_pageleave ?? true, // 默认启用页面离开自动追踪
+        persistence: config.persistence || "localStorage",
+        disable_compression: true,
+
+        // 批量模式配置（统一为对象数组格式）
+        batch_events: config.batch_mode ?? false, // 默认启用批量模式
+        batch_size: config.batch_size ?? 10, // 批量大小
+        batch_interval_ms: config.batch_interval ?? 1000, // 批量发送间隔（毫秒）
+
+        loaded: (posthog: any) => {
+          isPostHogInitialized = true;
+          localStorage.setItem("isPostHogInitialized", "1");
+
+          // 拦截请求，确保所有数据都是对象数组格式
+          if (initOptions.batch_events !== false) {
+            interceptPostHogRequests();
+          }
+
+          // 返回 distinct_id
+          const distinctId = posthog.get_distinct_id?.() || "";
+          resolve(distinctId);
+        },
+      };
+
+      // 只有在明确启用时才添加 session_recording 配置
+      if (config.session_recording?.enabled) {
+        initOptions.session_recording = config.session_recording;
+      }
+
+      posthog.init(config.apiKey, initOptions);
+      posthog.register({
+        cusEventType: "2",
+      });
+    } catch (error) {
+      console.error("[PostHog] Initialization failed:", error);
+      reject(error);
+    }
+  });
 }
 
 /**
