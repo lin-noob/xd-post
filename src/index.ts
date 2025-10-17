@@ -30,7 +30,6 @@ export { SSEClient, type SSEConfig } from "./sse-client";
 export * from "./posthog-integration";
 export {
   capturePageView,
-  capturePostHogEvent as track,
   capturePostHogEvent,
   capturePostHogEventBeacon as trackBeacon,
   capturePostHogEventBeacon,

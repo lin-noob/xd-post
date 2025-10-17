@@ -10,10 +10,27 @@ import {
   resetPostHogUser,
   capturePageView,
   getPostHogInstance,
+  capturePostHogEvent,
 } from "./posthog-integration";
 
 // 导出 capturePageView 供外部使用
 export { capturePageView };
+
+export type XDEventType =
+  | "PageView" // 页面访问
+  | "PageLeave" // 页面离开
+  | "ScrollDepth" // 页面滚动深度
+  | "Click" // 点击行为
+  | "ViewProduct" // 查看商品
+  | "AddToCart" // 加入购物车
+  | "RemoveFromCart" // 从购物车移除
+  | "StartCheckout" // 开始结账
+  | "CompletePurchase" // 完成购买
+  | "UserRegister" // 用户注册
+  | "UserLogin" // 用户登录
+  | "SubmitForm" // 提交表单
+  | "Search" // 执行搜索
+  | "PageDwellTime"; // 页面停留时间
 
 // =============================================================================
 // 类型定义
@@ -336,6 +353,7 @@ export function identify(userId: string, properties?: UserProperties): void {
 
     console.log(`[XD-Tracker] 用户已识别，用户ID: ${userId}`);
   }
+  reconnectionWS();
 }
 
 /**
@@ -350,16 +368,19 @@ export function reset(): void {
 
   // 同步到 PostHog（会重新生成 distinct_id）
   resetPostHogUser();
+  reconnectionWS();
+}
 
+function reconnectionWS() {
   // 获取新的 distinct_id
   const posthog = getPostHogInstance();
-  const newDistinctId = posthog.get_distinct_id?.() || generateUUID();
+  const newDistinctId = posthog.get_distinct_id?.();
   // 更新 persistedUserId
   const oldDistinctId = persistedUserId;
   persistedUserId = newDistinctId;
 
   // 如果配置了 WebSocket 且 distinct_id 发生变化
-  if (trackerOptions.websocketUrl && oldDistinctId !== newDistinctId) {
+  if (trackerOptions?.websocketUrl && oldDistinctId !== newDistinctId) {
     // 关闭旧的 WebSocket 连接
     if (websocketClient) {
       websocketClient.disconnect();
@@ -369,4 +390,25 @@ export function reset(): void {
     // 用新的 distinct_id 重新初始化 WebSocket
     initializeWebSocketConnection(newDistinctId);
   }
+}
+
+export function track(eventName: string, properties?: Record<string, any>) {
+  capturePostHogEvent(eventName, properties);
+
+  setTimeout(() => {
+    if (eventName === "UserLogin") {
+      if (websocketClient && websocketClient.isConnected()) {
+        const posthog = getPostHogInstance();
+        const newDistinctId = posthog.get_distinct_id?.();
+        const payload = JSON.stringify({
+          eventName,
+          distinct_id: newDistinctId,
+          userId: newDistinctId,
+          sdk: trackerOptions?.posthog.apiKey,
+        });
+        websocketClient?.send(payload);
+        return;
+      }
+    }
+  }, 200);
 }
