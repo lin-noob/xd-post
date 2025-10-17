@@ -395,20 +395,46 @@ function reconnectionWS() {
 export function track(eventName: string, properties?: Record<string, any>) {
   capturePostHogEvent(eventName, properties);
 
+  let attempts = 0;
+  const maxAttempts = 50; // 最多尝试 50 次 (5秒)
+  const checkInterval = 100; // 每 100ms 检查一次
+
   setTimeout(() => {
     if (eventName === "UserLogin") {
-      if (websocketClient && websocketClient.isConnected()) {
-        const posthog = getPostHogInstance();
-        const newDistinctId = posthog.get_distinct_id?.();
-        const payload = JSON.stringify({
-          eventName,
-          distinct_id: newDistinctId,
-          userId: newDistinctId,
-          sdk: trackerOptions?.posthog.apiKey,
-        });
-        websocketClient?.send(payload);
-        return;
-      }
+      const posthog = getPostHogInstance();
+      const newDistinctId = posthog.get_distinct_id?.();
+      const payload = JSON.stringify({
+        eventName,
+        distinct_id: newDistinctId,
+        userId: newDistinctId,
+        sdk: trackerOptions?.posthog.apiKey,
+      });
+      const intervalId = setInterval(() => {
+        attempts++;
+
+        if (websocketClient && websocketClient.isConnected()) {
+          // 连接成功，发送消息
+          const sent = websocketClient.send(payload);
+          if (sent) {
+            console.log(
+              `[XD-Tracker] UserLogin 事件已发送 (尝试 ${attempts} 次)`
+            );
+          }
+          clearInterval(intervalId);
+        } else if (attempts >= maxAttempts) {
+          // 超时
+          console.warn(
+            `[XD-Tracker] UserLogin 事件发送超时，WebSocket 未在 ${
+              maxAttempts * checkInterval
+            }ms 内连接`
+          );
+          clearInterval(intervalId);
+        } else {
+          console.log(
+            `[XD-Tracker] 等待 WebSocket 连接... (${attempts}/${maxAttempts})`
+          );
+        }
+      }, checkInterval);
     }
   }, 200);
 }
