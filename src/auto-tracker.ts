@@ -438,3 +438,12 @@ export function track(eventName: string, properties?: Record<string, any>) {
     }
   }, 200);
 }
+
+export function isIdentified(): boolean {
+  const posthog = getPostHogInstance();
+  if (!posthog) {
+    return false;
+  }
+
+  return posthog._isIdentified();
+}

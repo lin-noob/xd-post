@@ -11,6 +11,7 @@ import {
   updateWebSocketSessionId,
   setWebSocketAutoHandlePopup,
   getWebSocketAutoHandlePopup,
+  isIdentified
 } from "./auto-tracker";
 
 // 简单的运行时守卫以避免 SSR 崩溃
@@ -54,6 +55,7 @@ export type XDTracker = {
   updateWebSocketSessionId: typeof updateWebSocketSessionId;
   setWebSocketAutoHandlePopup: typeof setWebSocketAutoHandlePopup;
   getWebSocketAutoHandlePopup: typeof getWebSocketAutoHandlePopup;
+  isIdentified: typeof isIdentified;
 };
 
 // 导出用户属性接口和配置接口
@@ -71,6 +73,7 @@ const xdTracker: XDTracker = {
   updateWebSocketSessionId,
   setWebSocketAutoHandlePopup,
   getWebSocketAutoHandlePopup,
+  isIdentified
 };
 
 export default xdTracker;
