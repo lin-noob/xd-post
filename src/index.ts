@@ -11,7 +11,14 @@ import {
   updateWebSocketSessionId,
   setWebSocketAutoHandlePopup,
   getWebSocketAutoHandlePopup,
-  isIdentified
+  isIdentified,
+  userRegisterTrack,
+  userLoginTrack,
+  quoteTrack,
+  addToCartTrack,
+  submitOrderTrack,
+  completePurchaseTrack,
+  startCheckout,
 } from "./auto-tracker";
 
 // 简单的运行时守卫以避免 SSR 崩溃
@@ -22,7 +29,14 @@ const isBrowser =
 export * from "./auto-tracker";
 
 // 导出 popup 功能
-export { showPopup, hidePopup, showPopupFromStrategy, type PopupButton, type PopupPayload, type PopupOptions } from "./popup";
+export {
+  showPopup,
+  hidePopup,
+  showPopupFromStrategy,
+  type PopupButton,
+  type PopupPayload,
+  type PopupOptions,
+} from "./popup";
 
 // 导出 SSE 客户端
 export { SSEClient, type SSEConfig } from "./sse-client";
@@ -37,7 +51,7 @@ export {
   flushPostHogEvents as flush,
   flushPostHogEvents,
   setPostHogUserProperties,
-  getPostHogInstance
+  getPostHogInstance,
 } from "./posthog-integration";
 
 // 导出 WebSocket 客户端
@@ -56,6 +70,13 @@ export type XDTracker = {
   setWebSocketAutoHandlePopup: typeof setWebSocketAutoHandlePopup;
   getWebSocketAutoHandlePopup: typeof getWebSocketAutoHandlePopup;
   isIdentified: typeof isIdentified;
+  userRegisterTrack: typeof userRegisterTrack;
+  userLoginTrack: typeof userLoginTrack;
+  quoteTrack: typeof quoteTrack;
+  addToCartTrack: typeof addToCartTrack;
+  submitOrderTrack: typeof submitOrderTrack;
+  completePurchaseTrack: typeof completePurchaseTrack;
+  startCheckout: typeof startCheckout;
 };
 
 // 导出用户属性接口和配置接口
@@ -73,7 +94,14 @@ const xdTracker: XDTracker = {
   updateWebSocketSessionId,
   setWebSocketAutoHandlePopup,
   getWebSocketAutoHandlePopup,
-  isIdentified
+  isIdentified,
+  userRegisterTrack,
+  userLoginTrack,
+  quoteTrack,
+  addToCartTrack,
+  submitOrderTrack,
+  completePurchaseTrack,
+  startCheckout
 };
 
 export default xdTracker;

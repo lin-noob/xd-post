@@ -30,11 +30,28 @@ export type XDEventType =
   | "UserLogin" // 用户登录
   | "SubmitForm" // 提交表单
   | "Search" // 执行搜索
-  | "PageDwellTime"; // 页面停留时间
+  | "PageDwellTime" // 页面停留时间
+  | "SubmitOrder" // 下单
+  | "Quote"; // 询价
 
 // =============================================================================
 // 类型定义
 // =============================================================================
+
+export type EventExtraBase = {
+  /**
+   * false 不上报
+   */
+  enabled?: boolean;
+  [key: string]: any; // 允许其他自定义属性
+};
+
+export interface UserRegisterProperties extends EventExtraBase {
+  userId?: string;
+  email?: string;
+  phone?: string;
+  userName?: string;
+}
 
 // 用户属性接口
 export interface UserProperties {
@@ -446,4 +463,65 @@ export function isIdentified(): boolean {
   }
 
   return posthog._isIdentified();
+}
+
+/**
+ * UserLogin
+ * @param key User Unique Property
+ * @param extra User
+ */
+export function userLoginTrack(key: string, extra?: EventExtraBase) {
+  const eventName = "UserLogin";
+
+  if (extra?.enabled !== false) {
+    identify(key, { ...extra });
+    track(eventName, { key, ...extra });
+  }
+}
+
+/**
+ * UserRegister
+ * @param key User Unique Property
+ * @param extra User Property
+ */
+export function userRegisterTrack(key: string, extra?: UserRegisterProperties) {
+  const eventName = "UserRegister";
+  if (extra?.enabled !== false) {
+    track(eventName, { key, ...extra });
+  }
+}
+
+export function quoteTrack(extra?: EventExtraBase) {
+  const eventName = "Quote";
+  if (extra?.enabled !== false) {
+    track(eventName, { ...extra });
+  }
+}
+
+export function addToCartTrack(extra?: EventExtraBase) {
+  const eventName = "AddToCart";
+  if (extra?.enabled !== false) {
+    track(eventName, { ...extra });
+  }
+}
+
+export function submitOrderTrack(extra?: EventExtraBase) {
+  const eventName = "SubmitOrder";
+  if (extra?.enabled !== false) {
+    track(eventName, { ...extra });
+  }
+}
+
+export function startCheckout(extra?: EventExtraBase) {
+  const eventName = "StartCheckout";
+  if (extra?.enabled !== false) {
+    track(eventName, { ...extra });
+  }
+}
+
+export function completePurchaseTrack(extra?: EventExtraBase) {
+  const eventName = "CompletePurchase";
+  if (extra?.enabled !== false) {
+    track(eventName, { ...extra });
+  }
 }
