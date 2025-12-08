@@ -19,6 +19,11 @@ import {
   submitOrderTrack,
   completePurchaseTrack,
   startCheckout,
+  contactUsTrack,
+  boxBuildSubmitTrack,
+  clickHomeInquiryTrack,
+  clickBannerInquiryTrack,
+  articleContentClickTrack,
 } from "./auto-tracker";
 
 // 简单的运行时守卫以避免 SSR 崩溃
@@ -77,6 +82,11 @@ export type XDTracker = {
   submitOrderTrack: typeof submitOrderTrack;
   completePurchaseTrack: typeof completePurchaseTrack;
   startCheckout: typeof startCheckout;
+  contactUsTrack: typeof contactUsTrack;
+  boxBuildSubmitTrack: typeof boxBuildSubmitTrack;
+  clickHomeInquiryTrack: typeof clickHomeInquiryTrack;
+  clickBannerInquiryTrack: typeof clickBannerInquiryTrack;
+  articleContentClickTrack: typeof articleContentClickTrack;
 };
 
 // 导出用户属性接口和配置接口
@@ -101,7 +111,12 @@ const xdTracker: XDTracker = {
   addToCartTrack,
   submitOrderTrack,
   completePurchaseTrack,
-  startCheckout
+  startCheckout,
+  contactUsTrack,
+  boxBuildSubmitTrack,
+  clickHomeInquiryTrack,
+  clickBannerInquiryTrack,
+  articleContentClickTrack,
 };
 
 export default xdTracker;

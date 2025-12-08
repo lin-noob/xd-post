@@ -525,3 +525,58 @@ export function completePurchaseTrack(extra?: EventExtraBase) {
     track(eventName, { ...extra });
   }
 }
+
+/**
+ * 联系表单
+ * @param extra event params
+ */
+export function contactUsTrack(extra?: EventExtraBase) {
+  const eventName = "ContactUs";
+  if (extra?.enabled !== false) {
+    track(eventName, { ...extra });
+  }
+}
+
+/**
+ * 整机组装报价 BoxBuild Submit
+ * @param extra
+ */
+export function boxBuildSubmitTrack(extra?: EventExtraBase) {
+  const eventName = "BoxBuildSubmit";
+  if (extra?.enabled !== false) {
+    track(eventName, { ...extra });
+  }
+}
+
+/**
+ * 首页询价按钮点击 click_home_inquiry
+ * @param extra
+ */
+export function clickHomeInquiryTrack(extra?: EventExtraBase) {
+  const eventName = "ClickHomeInquiry";
+  if (extra?.enabled !== false) {
+    track(eventName, { ...extra });
+  }
+}
+
+/**
+ * banner询价点击  banner_inquiry_click
+ * @param extra
+ */
+export function clickBannerInquiryTrack(extra?: EventExtraBase) {
+  const eventName = "ClickBannerInquiry";
+  if (extra?.enabled !== false) {
+    track(eventName, { ...extra });
+  }
+}
+
+/**
+ * 文章内嵌点击
+ * @param extra 
+ */
+export function articleContentClickTrack(extra?: EventExtraBase) {
+  const eventName = "ArticleContentClick";
+  if (extra?.enabled !== false) {
+    track(eventName, { ...extra });
+  }
+}
