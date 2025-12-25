@@ -46,6 +46,20 @@ export {
 // 导出 SSE 客户端
 export { SSEClient, type SSEConfig } from "./sse-client";
 
+// 导出热力图桥接器
+export {
+  initHeatmapBridge,
+  destroyHeatmapBridge,
+  locateElementAndGetPosition,
+  sendPositionToParent,
+  locateAndSendToParent,
+  type ElementInfo,
+  type ElementPosition,
+  type HeatmapPositionMessage,
+  type HeatmapPositionRequest,
+  type HeatmapBridgeConfig,
+} from "./heatmap-bridge";
+
 // 导出 PostHog 集成
 export * from "./posthog-integration";
 export {
