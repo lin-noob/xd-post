@@ -144,10 +144,13 @@ export function initializePostHog(config: PostHogConfig): Promise<string> {
       const initOptions: any = {
         api_host: config.host,
         autocapture: config.autocapture ?? true, // 默认启用 PostHog 原生自动采集
+        // capture_heatmaps: true,
         capture_pageview: "history_change", // 默认启用页面浏览自动追踪
         capture_pageleave: config.capture_pageleave ?? true, // 默认启用页面离开自动追踪
         persistence: config.persistence || "localStorage",
         disable_compression: true,
+
+        advanced_disable_decide: true,
 
         // 批量模式配置（统一为对象数组格式）
         batch_events: config.batch_mode ?? false, // 默认启用批量模式
