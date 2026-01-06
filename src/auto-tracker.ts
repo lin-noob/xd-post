@@ -512,7 +512,7 @@ export function submitOrderTrack(extra?: EventExtraBase) {
   }
 }
 
-export function startCheckout(extra?: EventExtraBase) {
+export function startCheckoutTrack(extra?: EventExtraBase) {
   const eventName = "StartCheckout";
   if (extra?.enabled !== false) {
     track(eventName, { ...extra });
@@ -572,7 +572,7 @@ export function clickBannerInquiryTrack(extra?: EventExtraBase) {
 
 /**
  * 文章内嵌点击
- * @param extra 
+ * @param extra
  */
 export function articleContentClickTrack(extra?: EventExtraBase) {
   const eventName = "ArticleContentClick";

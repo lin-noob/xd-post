@@ -18,7 +18,7 @@ import {
   addToCartTrack,
   submitOrderTrack,
   completePurchaseTrack,
-  startCheckout,
+  startCheckoutTrack,
   contactUsTrack,
   boxBuildSubmitTrack,
   clickHomeInquiryTrack,
@@ -95,7 +95,7 @@ export type XDTracker = {
   addToCartTrack: typeof addToCartTrack;
   submitOrderTrack: typeof submitOrderTrack;
   completePurchaseTrack: typeof completePurchaseTrack;
-  startCheckout: typeof startCheckout;
+  startCheckoutTrack: typeof startCheckoutTrack;
   contactUsTrack: typeof contactUsTrack;
   boxBuildSubmitTrack: typeof boxBuildSubmitTrack;
   clickHomeInquiryTrack: typeof clickHomeInquiryTrack;
@@ -125,7 +125,7 @@ const xdTracker: XDTracker = {
   addToCartTrack,
   submitOrderTrack,
   completePurchaseTrack,
-  startCheckout,
+  startCheckoutTrack,
   contactUsTrack,
   boxBuildSubmitTrack,
   clickHomeInquiryTrack,

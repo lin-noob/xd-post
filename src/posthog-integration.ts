@@ -144,7 +144,7 @@ export function initializePostHog(config: PostHogConfig): Promise<string> {
       const initOptions: any = {
         api_host: config.host,
         autocapture: config.autocapture ?? true, // 默认启用 PostHog 原生自动采集
-        // capture_heatmaps: true,
+        // capture_heatmaps: true, // 热力图开关
         capture_pageview: "history_change", // 默认启用页面浏览自动追踪
         capture_pageleave: config.capture_pageleave ?? true, // 默认启用页面离开自动追踪
         persistence: config.persistence || "localStorage",
